@@ -1,0 +1,262 @@
+---
+title: "FIFA-22-Project"
+author: "Atharva Jadhav | Harshali Gaikwad | Sriujan Harihar"
+date: "2023-12-02"
+output:
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE, message=FALSE} 
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+```
+
+**Step 1: Importing the datasets**
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(e1071)
+library(caret)
+library(car)
+library(MASS)
+library(glmnet)
+library(class)
+library(randomForest)
+library(corrplot)
+library(yardstick)
+fifaFemale <- read.csv("./female_players_22.csv")
+fifaMale <- read.csv("./players_22.csv")
+str(fifaFemale)
+str(fifaMale)
+head(fifaFemale,5)
+head(fifaMale,5)
+names(fifaFemale)
+```
+
+**Step 2: Cleaning the dataset and performing data preparation on female dataset**
+
+```{r}
+fifaFemale <- data.frame(fifaFemale)
+fifaFemaleS1 <- subset(fifaFemale, select = c(sofifa_id, short_name, long_name, player_positions, overall, potential, age, dob, height_cm, weight_kg, nationality_name, nation_jersey_number, body_type))
+
+fifaFemaleS2 <- subset(fifaFemale, select = c(sofifa_id, overall, wage_eur, value_eur, preferred_foot, weak_foot, skill_moves, pace, shooting, passing, dribbling, defending, physic, attacking_crossing, attacking_finishing, attacking_heading_accuracy, attacking_short_passing, attacking_volleys, skill_dribbling, skill_curve, skill_fk_accuracy, skill_long_passing, skill_ball_control, movement_acceleration, movement_sprint_speed, movement_agility, movement_reactions, movement_balance, power_shot_power, power_jumping, power_stamina, power_strength, power_long_shots, mentality_aggression, mentality_interceptions, mentality_positioning, mentality_vision, mentality_penalties, mentality_composure, defending_marking_awareness, defending_standing_tackle, defending_sliding_tackle, goalkeeping_diving, goalkeeping_handling, goalkeeping_kicking, goalkeeping_positioning, goalkeeping_reflexes, goalkeeping_speed))
+
+fifaFemaleS3 <- subset(fifaFemale, select = c(sofifa_id, ls, st, rs, lw, lf, cf, rf, rw, lam, cam, ram, lm, lcm, cm, rcm, rm, lwb, ldm, cdm, rdm, rwb, lb, lcb, cb, rcb, rb, gk))
+
+fifaFemaleS2$preferred_foot_new <- ifelse(fifaFemaleS2$preferred_foot == "Right", 1, ifelse(fifaFemaleS2$preferred_foot == "Left", 2, 0))
+fifaFemaleS2$preferred_foot_new <- factor(fifaFemaleS2$preferred_foot_new, levels = c(1, 2))
+
+head(fifaMale,5)
+```
+
+**Replacing the NA values from the required column with the mean of the column**
+
+```{r}
+fifaFemaleS2$pace[which(is.na(fifaFemaleS2$pace))]<-mean(fifaFemaleS2$pace, na.rm = TRUE)
+fifaFemaleS2$shooting[which(is.na(fifaFemaleS2$shooting))]<-mean(fifaFemaleS2$shooting, na.rm = TRUE)
+fifaFemaleS2$passing[which(is.na(fifaFemaleS2$passing))]<-mean(fifaFemaleS2$passing, na.rm = TRUE)
+fifaFemaleS2$dribbling[which(is.na(fifaFemaleS2$dribbling))]<-mean(fifaFemaleS2$dribbling, na.rm = TRUE)
+fifaFemaleS2$defending[which(is.na(fifaFemaleS2$defending))]<-mean(fifaFemaleS2$defending, na.rm = TRUE)
+fifaFemaleS2$physic[which(is.na(fifaFemaleS2$physic))]<-mean(fifaFemaleS2$physic, na.rm = TRUE)
+
+fifaFemaleS2$pace <- round(fifaFemaleS2$pace, 0)
+fifaFemaleS2$shooting <- round(fifaFemaleS2$shooting, 0)
+fifaFemaleS2$passing <- round(fifaFemaleS2$passing, 0)
+fifaFemaleS2$dribbling <- round(fifaFemaleS2$dribbling, 0)
+fifaFemaleS2$defending <- round(fifaFemaleS2$defending, 0)
+fifaFemaleS2$physic <- round(fifaFemaleS2$physic, 0)
+```
+
+**Cleaning the dataset and performing data preparation for male dataset**
+
+```{r}
+fifaMaleS1 <- subset(fifaMale, select = c(sofifa_id, short_name, long_name, player_positions, overall, potential, age, dob, height_cm, weight_kg, nationality_name, body_type))
+
+fifaMaleS2 <- subset(fifaMale, select = c(sofifa_id, overall, wage_eur, value_eur, preferred_foot, weak_foot, skill_moves, player_traits, pace, shooting, passing, dribbling, defending, physic, attacking_crossing, attacking_finishing, attacking_heading_accuracy, attacking_short_passing, attacking_volleys, skill_dribbling, skill_curve, skill_fk_accuracy, skill_long_passing, skill_ball_control, movement_acceleration, movement_sprint_speed, movement_agility, movement_reactions, movement_balance, power_shot_power, power_jumping, power_stamina, power_strength, power_long_shots, mentality_aggression, mentality_interceptions, mentality_positioning, mentality_vision, mentality_penalties, mentality_composure, defending_marking_awareness, defending_standing_tackle, defending_sliding_tackle, goalkeeping_diving, goalkeeping_handling, goalkeeping_kicking, goalkeeping_positioning, goalkeeping_reflexes))
+
+
+fifaMaleS3 <- subset(fifaMale, select = c(sofifa_id, ls, st, rs, lw, lf, cf, rf, rw, lam, cam, ram, lm, lcm, cm, rcm, rm, lwb, ldm, cdm, rdm, rwb, lb, lcb, cb, rcb, rb, gk))
+
+
+fifaMaleS2$preferred_foot_new <- ifelse(fifaMaleS2$preferred_foot == "Right", 1,
+                                      ifelse(fifaMaleS2$preferred_foot == "Left", 2, 0))
+fifaMaleS2$preferred_foot_new <- factor(fifaMaleS2$preferred_foot_new, levels = c(1, 2))
+
+
+fifaMaleS2$pace[which(is.na(fifaMaleS2$pace))]<-mean(fifaMaleS2$pace, na.rm = TRUE)
+fifaMaleS2$shooting[which(is.na(fifaMaleS2$shooting))]<-mean(fifaMaleS2$shooting, na.rm = TRUE)
+fifaMaleS2$passing[which(is.na(fifaMaleS2$passing))]<-mean(fifaMaleS2$passing, na.rm = TRUE)
+fifaMaleS2$dribbling[which(is.na(fifaMaleS2$dribbling))]<-mean(fifaMaleS2$dribbling, na.rm = TRUE)
+fifaMaleS2$defending[which(is.na(fifaMaleS2$defending))]<-mean(fifaMaleS2$defending, na.rm = TRUE)
+fifaMaleS2$physic[which(is.na(fifaMaleS2$physic))]<-mean(fifaMaleS2$physic, na.rm = TRUE)
+fifaMaleS2$wage_eur[which(is.na(fifaMaleS2$wage_eur))]<-mean(fifaMaleS2$wage_eur, na.rm = TRUE)
+fifaMaleS2$value_eur[which(is.na(fifaMaleS2$value_eur))]<-mean(fifaMaleS2$value_eur, na.rm = TRUE)
+
+fifaMaleS2$pace <- round(fifaMaleS2$pace, 0)
+fifaMaleS2$shooting <- round(fifaMaleS2$shooting, 0)
+fifaMaleS2$passing <- round(fifaMaleS2$passing, 0)
+fifaMaleS2$dribbling <- round(fifaMaleS2$dribbling, 0)
+fifaMaleS2$defending <- round(fifaMaleS2$defending, 0)
+fifaMaleS2$physic <- round(fifaMaleS2$physic, 0)
+fifaMaleS2$wage_eur <- round(fifaMaleS2$wage_eur, 0)
+fifaMaleS2$value_eur <- round(fifaMaleS2$value_eur, 0)
+```
+
+**Lets look at summary of some of the important numbers in our dataset.**
+
+```{r}
+#fifaFemaleS2.summary <- fifaFemaleS2 %>%
+ # select(overall, pace, dribbling, shooting, weak_foot, skill_moves) %>%
+  #summarize_each(funs(minimum = min,
+   #                   firstQuartile = quantile(., 0.25, na.rm = TRUE),
+    #                  median = median,
+     #                 thirdQuartile = quantile(., 0.75, na.rm = TRUE),
+      #                mean = mean,
+       #               maximum = max))
+#print(fifaFemaleS2.summary)
+```
+
+```{r}
+boxplot(fifaFemaleS2[, 7:49], las = 2, main = "Box Plot of Player Attributes", ylab = "Attribute Values")
+
+hist(fifaMale$wage_eur, main = "Histogram of Player Wage", xlab = "Values in EUR", breaks = 80, xlim = c(0,100000))
+
+linearReg_overall <- lm(overall ~ weak_foot + skill_moves + pace + shooting + passing + dribbling + defending + physic + attacking_crossing + attacking_finishing + attacking_heading_accuracy + attacking_short_passing + attacking_volleys + skill_dribbling +skill_curve + skill_fk_accuracy + skill_long_passing + skill_ball_control + movement_acceleration + movement_sprint_speed + movement_agility + movement_reactions + movement_balance + power_shot_power + power_jumping + power_stamina + power_strength + power_long_shots + mentality_aggression + mentality_interceptions + mentality_positioning + mentality_vision + mentality_penalties + mentality_composure + defending_marking_awareness + defending_standing_tackle + defending_sliding_tackle + goalkeeping_diving + goalkeeping_handling + goalkeeping_kicking + goalkeeping_positioning + goalkeeping_reflexes + goalkeeping_speed + preferred_foot_new, data = fifaFemaleS2)
+
+summary(linearReg_overall)
+```
+
+**Distribution based on Age**
+
+```{r}
+fifaMaleS1$player_positions <- as.factor(fifaMaleS1$player_positions)
+g_ageMale <- ggplot(data = fifaMaleS1, aes(age))
+g_ageMale+geom_histogram(aes(fill= ..count..))+ggtitle("Distribution based on Age(Male)")
+
+fifaFemaleS1$player_positions <- as.factor(fifaFemaleS1$player_positions)
+g_ageFemale <- ggplot(data = fifaFemaleS1, aes(age))
+g_ageFemale+geom_histogram(aes(fill= ..count..))+ggtitle("Distribution based on Age(Female)")
+```
+
+**Distribution based on Overall Rating**
+
+```{r}
+g_overallMale <- ggplot(data = fifaMaleS1, aes(overall))
+g_overallMale+geom_histogram(aes(fill= ..count..))+ggtitle("Distribution based on Overall Rating(Male)")
+
+g_overallFemale <- ggplot(data = fifaFemaleS1, aes(overall))
+g_overallFemale+geom_histogram(aes(fill= ..count..))+ggtitle("Distribution based on Overall Rating(Female)")
+```
+
+**Distribution based on Potential Rating**
+```{r}
+g_potentialMale <- ggplot(data = fifaMaleS1, aes(potential))
+g_potentialMale+geom_histogram(aes(fill= ..count..))+ggtitle("Distribution based on Potential Rating(Male)")
+
+g_potentialFemale <- ggplot(data = fifaFemaleS1, aes(potential))
+g_potentialFemale+geom_histogram(aes(fill= ..count..))+ggtitle("Distribution based on Potential Rating(Female)")
+```
+
+**Countries that produce best talents**
+
+```{r}
+countriesCount <- count(fifaMaleS1, nationality_name)
+top10 <- top_n(countriesCount, 10, n)
+top10names <- top10$nationality_name
+country <- filter(fifaMaleS1, nationality_name == top10names)
+ggplot(country, aes(x=nationality_name))+geom_bar(aes(fill=..count..))+ggtitle("Distribution based on Nationality of players (Top 10 Countries) for Male")
+
+countriesCountF <- count(fifaFemaleS1, nationality_name)
+top10F <- top_n(countriesCountF, 10, n)
+top10namesF <- top10F$nationality_name
+countryF <- filter(fifaFemaleS1, nationality_name == top10namesF)
+ggplot(countryF, aes(x=nationality_name))+geom_bar(aes(fill=..count..))+ggtitle("Distribution based on Nationality of players (Top 10 Countries) for Female")
+```
+
+**Players with the top 1% of the wage**
+```{r}
+top_1_percent_wage_male  <- quantile(fifaMaleS2$wage_eur, probs=0.99)
+filtered_wage_male <- filter(fifaMaleS2, wage_eur > top_1_percent_wage_male)
+
+g_value_male <- ggplot(filtered_wage_male, aes(wage_eur))
+g_value_male + geom_histogram(aes(fill=..count..)) + ggtitle("Distribution of top 1% wage(Male)")
+```
+
+
+**Finding the Collinearity between the features**
+```{r}
+index <- createDataPartition(fifaMaleS2$overall, times = 1,p=0.8,list = FALSE)
+trainMale <- fifaMaleS2[index,]
+testMale <- fifaMaleS2[-index,]
+str(trainMale)
+str(testMale)
+
+predictors <- c("weak_foot", "skill_moves", "pace", "shooting", "passing", "dribbling", "defending", "physic", "attacking_crossing", "attacking_finishing", "attacking_heading_accuracy", "attacking_short_passing", "attacking_volleys", "skill_dribbling", "skill_curve", "skill_fk_accuracy", "skill_long_passing", "skill_ball_control", "movement_acceleration", "movement_sprint_speed", "movement_agility", "movement_reactions", "movement_balance", "power_shot_power", "power_jumping", "power_stamina", "power_strength", "power_long_shots", "mentality_aggression", "mentality_interceptions", "mentality_positioning", "mentality_vision", "mentality_penalties", "mentality_composure", "defending_marking_awareness", "defending_standing_tackle", "defending_sliding_tackle", "goalkeeping_diving", "goalkeeping_handling", "goalkeeping_kicking", "goalkeeping_positioning", "goalkeeping_reflexes")
+
+vif_values <- car::vif(lm(overall ~ ., data = trainMale[, c("overall", predictors)]))
+
+print(vif_values)
+```
+
+**Modelling using linear regression and finding the Mean squared errors and the r-squared value**
+
+```{r}
+linearReg_overall <- lm(overall ~ weak_foot + skill_moves + pace + shooting + passing + dribbling + defending + physic + attacking_crossing + attacking_finishing + attacking_heading_accuracy + attacking_short_passing + attacking_volleys + skill_dribbling +skill_curve + skill_fk_accuracy + skill_long_passing + skill_ball_control + movement_acceleration + movement_sprint_speed + movement_agility + movement_reactions + movement_balance + power_shot_power + power_jumping + power_stamina + power_strength + power_long_shots + mentality_aggression + mentality_interceptions + mentality_positioning + mentality_vision + mentality_penalties + mentality_composure + defending_marking_awareness + defending_standing_tackle + defending_sliding_tackle + goalkeeping_diving + goalkeeping_handling + goalkeeping_kicking + goalkeeping_positioning + goalkeeping_reflexes + preferred_foot_new, data = trainMale)
+
+
+predictLinearRegression <- predict(linearReg_overall, testMale)
+
+actual_values <- testMale$overall
+
+mse <- mean((actual_values - predictLinearRegression)^2)
+
+mean_actual <- mean(actual_values)
+ss_total <- sum((actual_values - mean_actual)^2)
+ss_residual <- sum((actual_values - predictLinearRegression)^2)
+r_squared <- 1 - (ss_residual / ss_total)
+
+# Print the results
+cat("Mean Squared Error (MSE):", mse, "\n")
+cat("R-squared (R2):", r_squared, "\n")
+
+par(mfrow = c(2, 2))
+plot(linearReg_overall)
+
+subset_train <- trainMale[, c("overall", predictors)]
+
+# Calculate correlation matrix
+cor_matrix <- cor(subset_train)
+
+# Create a correlation plot
+corrplot(cor_matrix, method = "circle", type = "upper", tl.pos = "lt", tl.col = "black", title = "Correlation Plot for Linear Regression")
+```
+
+**Modelling using Linear Discriminant Analysis**
+
+```{r}
+modelLDA <- lda(overall ~ weak_foot + skill_moves + pace + shooting + passing + dribbling + defending + physic + attacking_crossing + attacking_finishing + attacking_heading_accuracy + attacking_short_passing + attacking_volleys + skill_dribbling +skill_curve + skill_fk_accuracy + skill_long_passing + skill_ball_control + movement_acceleration + movement_sprint_speed + movement_agility + movement_reactions + movement_balance + power_shot_power + power_jumping + power_stamina + power_strength + power_long_shots + mentality_aggression + mentality_interceptions + mentality_positioning + mentality_vision + mentality_penalties + mentality_composure + defending_marking_awareness + defending_standing_tackle + defending_sliding_tackle + goalkeeping_diving + goalkeeping_handling + goalkeeping_kicking + goalkeeping_positioning + goalkeeping_reflexes + preferred_foot_new, data = trainMale)
+
+predictions <- predict(modelLDA, newdata = testMale)
+conf_matrix <- table(predictions$class, testMale$overall)
+accuracy <- sum(diag(conf_matrix)) / sum(conf_matrix)
+accuracy
+```
+
+
+**Modelling using K-nearest neighbor model**
+```{r}
+k_neighbors <- 80
+
+knn_model <- knn(train = trainMale[, predictors], test = testMale[, predictors], cl = trainMale$overall, k = k_neighbors)
+
+conf_matrix_knn <- table(knn_model, testMale$overall)
+
+conf_matrix_knn
+
+accuracy <- sum(knn_model == testMale$overall) / length(testMale$overall)
+
+print(paste("Accuracy:", round(accuracy, 4)))
+
+plot(conf_matrix_knn, main = "Confusion Matrix - K Nearest Neighbor")
+```
